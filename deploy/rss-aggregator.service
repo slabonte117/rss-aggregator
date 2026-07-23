@@ -1,0 +1,10 @@
+[Unit]
+Description=RSS Aggregator Worker - fetch feeds and ingest into Notion Content Inbox
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/sean/apps/rss-aggregator
+ExecStart=/home/sean/apps/rss-aggregator/venv/bin/python /home/sean/apps/rss-aggregator/run_ingest.py
+User=sean

@@ -1,0 +1,9 @@
+[Unit]
+Description=Run RSS Aggregator Worker three times daily (7am, 1pm, 7pm)
+
+[Timer]
+OnCalendar=*-*-* 07,13,19:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
