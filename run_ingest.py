@@ -3,9 +3,12 @@ import re
 import html
 from datetime import datetime, timedelta, timezone
 from time import mktime
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 from notion_client import Client
 import feedparser
+import trafilatura
+from trafilatura.settings import use_config
 
 load_dotenv()
 
@@ -13,6 +16,7 @@ notion = Client(auth=os.environ["NOTION_TOKEN"])
 feed_sources_id = os.environ["FEED_SOURCES_DATA_SOURCE_ID"]
 content_inbox_id = os.environ["CONTENT_INBOX_DATA_SOURCE_ID"]
 cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+TRAFILATURA_CONFIG = use_config(filename="trafilatura_settings.cfg")
 
 SOURCE_MAP = {
     "BBC News": "BBC News",
@@ -21,6 +25,13 @@ SOURCE_MAP = {
     "The New York Times": "The New York Times",
     "Ars Technica": "Ars Technica",
     "MIT Technology Review": "MIT Technology Review",
+}
+
+PAYWALLED_DOMAINS = {
+    "nytimes.com",
+    "theguardian.com",
+    "bbc.com",
+    "bbc.co.uk",
 }
 
 def resolve_source(feed_name):
@@ -32,6 +43,51 @@ def resolve_source(feed_name):
 def clean_snippet(text):
     no_tags = re.sub("<[^<]+?>", "", text or "")
     return html.unescape(no_tags).strip()
+
+def is_paywalled(link):
+    domain = urlparse(link).netloc.lower()
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return any(domain == d or domain.endswith("." + d) for d in PAYWALLED_DOMAINS)
+
+def get_full_text(entry, link):
+    content_field = entry.get("content")
+    if content_field:
+        feed_text = clean_snippet(content_field[0].get("value", ""))
+        if len(feed_text) > 600:
+            return feed_text
+    if is_paywalled(link):
+        return None
+    try:
+        downloaded = trafilatura.fetch_url(link, config=TRAFILATURA_CONFIG)
+        if downloaded:
+            extracted = trafilatura.extract(downloaded, config=TRAFILATURA_CONFIG)
+            if extracted and len(extracted) > 200:
+                return extracted
+    except Exception:
+        pass
+    return None
+
+def text_to_blocks(text, max_blocks=95):
+    blocks = []
+    for para in text.split("\n"):
+        para = para.strip()
+        if not para:
+            continue
+        for i in range(0, len(para), 2000):
+            if len(blocks) >= max_blocks:
+                blocks.append({
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"type": "text", "text": {"content": "[Content truncated]"}}]},
+                })
+                return blocks
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {"rich_text": [{"type": "text", "text": {"content": para[i:i + 2000]}}]},
+            })
+    return blocks
 
 existing_urls = set()
 cursor = None
@@ -82,6 +138,9 @@ for row in feed_response["results"]:
             continue
 
         snippet = clean_snippet(entry.get("summary", ""))[:500]
+        full_text = get_full_text(entry, link)
+        children = text_to_blocks(full_text) if full_text else None
+
         properties = {
             "Title": {"title": [{"text": {"content": title[:2000]}}]},
             "URL": {"url": link},
@@ -95,10 +154,13 @@ for row in feed_response["results"]:
             properties["Published"] = {"date": {"start": published_dt.isoformat()}}
 
         try:
-            notion.pages.create(
-                parent={"type": "data_source_id", "data_source_id": content_inbox_id},
-                properties=properties,
-            )
+            create_kwargs = {
+                "parent": {"type": "data_source_id", "data_source_id": content_inbox_id},
+                "properties": properties,
+            }
+            if children:
+                create_kwargs["children"] = children
+            notion.pages.create(**create_kwargs)
             created += 1
             existing_urls.add(link)
         except Exception as e:

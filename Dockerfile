@@ -6,5 +6,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY run_ingest.py .
+COPY trafilatura_settings.cfg .
 
 CMD ["python", "run_ingest.py"]
