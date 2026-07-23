@@ -1,10 +1,14 @@
 [Unit]
-Description=RSS Aggregator Worker - fetch feeds and ingest into Notion Content Inbox
-After=network-online.target
+Description=RSS Aggregator Worker - fetch feeds and ingest into Notion Content Inbox (Docker)
+After=network-online.target docker.service
 Wants=network-online.target
+Requires=docker.service
 
 [Service]
 Type=oneshot
 WorkingDirectory=/home/sean/apps/rss-aggregator
-ExecStart=/home/sean/apps/rss-aggregator/venv/bin/python /home/sean/apps/rss-aggregator/run_ingest.py
+ExecStart=/usr/bin/docker compose run --rm rss-aggregator
 User=sean
+
+[Install]
+WantedBy=multi-user.target

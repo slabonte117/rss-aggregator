@@ -1,0 +1,6 @@
+services:
+  rss-aggregator:
+    build: .
+    env_file:
+      - .env
+    restart: "no"
