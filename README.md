@@ -20,6 +20,7 @@ Built to replace passive social-media scrolling with an intentional, curated rea
                 2. Fetch + parse each feed (feedparser)
                 3. Query existing Content Inbox URLs (dedup)
                 4. Insert new articles into Content Inbox
+                5. Prune: move rows older than 30 days (Keep unchecked) to the Notion trash
 
 ## Tech stack
 - Python 3.13 (feedparser, notion-client, python-dotenv)
@@ -34,6 +35,9 @@ Built to replace passive social-media scrolling with an intentional, curated rea
     docker compose build
     docker compose run --rm rss-aggregator
 
+## Pruning
+After each ingest, rows created more than 30 days ago are moved to the Notion trash unless the row's **Keep** checkbox is checked. Each run is capped (1500 rows, 10 minutes) so the first runs work through the backlog in slices without delaying the next ingest. Preview first with `docker compose run --rm rss-aggregator python prune.py --dry-run`. Settings are in `.env.template`.
+
 ## Scheduling (systemd)
     sudo cp deploy/rss-aggregator.service deploy/rss-aggregator.timer /etc/systemd/system/
     sudo systemctl daemon-reload
@@ -43,6 +47,8 @@ Built to replace passive social-media scrolling with an intentional, curated rea
 | File | Purpose |
 |---|---|
 | run_ingest.py | Main ingest pipeline |
+| prune.py | 30-day prune of the News Feed (Keep checkbox protects rows); `python prune.py --dry-run` previews |
+| tests/ | Unit tests for the prune (`python -m unittest discover -s tests -t .`) |
 | Dockerfile / docker-compose.yml | Containerized runtime |
 | deploy/rss-aggregator.service / .timer | systemd scheduling |
 | .env.template | Required environment variables |
