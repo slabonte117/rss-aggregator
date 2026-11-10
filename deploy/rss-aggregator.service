@@ -6,7 +6,7 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=~/apps/rss-aggregator
+WorkingDirectory=/home/sean/apps/rss-aggregator
 ExecStart=/usr/bin/docker compose run --rm rss-aggregator
 User=sean
 
