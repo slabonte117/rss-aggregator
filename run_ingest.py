@@ -184,3 +184,10 @@ for row in feed_response["results"]:
         print(f"  WARNING: could not write feed health for {name}: {e}")
 
 print(f"\nTOTAL: created={total_created} errors={total_errors}")
+
+# Prune old rows after ingest so a prune problem never blocks new articles.
+try:
+    from prune import run_prune
+    run_prune(notion, content_inbox_id)
+except Exception as e:
+    print(f"WARNING: prune skipped: {e}")
